@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: .
+    env_file: .env
+    volumes:
+      - ./private.key:/app/private.key:ro
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
