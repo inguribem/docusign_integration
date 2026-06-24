@@ -1,9 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { sendContract, getContractDefaults } from '../api/client'
-import type { NDAFields, MSAFields, SOWFields, ContractDefaults } from '../api/client'
+import type { NDAFields, MSAFields, SOWFields, SupportSOWFields, AcceptanceFields, GenNDAFields, ContractDefaults } from '../api/client'
 
-const CONTRACT_TYPES = ['nda', 'msa', 'sow']
+const CONTRACT_TYPES = ['nda', 'msa', 'sow', 'support', 'acceptance', 'gen_nda']
+
+const CONTRACT_TYPE_LABELS: Record<string, string> = {
+  nda:        'NDA',
+  msa:        'MSA',
+  sow:        'SOW (App Dev)',
+  support:    'SOW (Support & Maintenance)',
+  acceptance: 'Acceptance Certificate',
+  gen_nda:    'NDA (Generated PDF)',
+}
 const MONTHS = ['January','February','March','April','May','June',
                  'July','August','September','October','November','December']
 
@@ -94,6 +103,17 @@ interface SOWTerms {
   governing_county: string
 }
 
+// Términos del SOW de Soporte & Mantenimiento
+interface SupportTerms {
+  monthly_fee: string
+  included_hours: string
+  duration_months: string
+  sla_critical_hours: string
+  sla_medium_hours: string
+  sla_low_hours: string
+  governing_county: string
+}
+
 const DEFAULT_SOW_TERMS: SOWTerms = {
   project_description: '',
   m1_weeks: '', m1_payment: '',
@@ -108,6 +128,30 @@ const DEFAULT_SOW_TERMS: SOWTerms = {
   governing_county: 'Miami-Dade',
 }
 
+const DEFAULT_SUPPORT_TERMS: SupportTerms = {
+  monthly_fee: '',
+  included_hours: '',
+  duration_months: '',
+  sla_critical_hours: '4',
+  sla_medium_hours: '24',
+  sla_low_hours: '72',
+  governing_county: 'Orange',
+}
+
+interface AcceptanceTerms {
+  project_name: string
+  warranty_days: string
+  city: string
+  governing_county: string
+}
+
+const DEFAULT_ACCEPTANCE_TERMS: AcceptanceTerms = {
+  project_name: '',
+  warranty_days: '30',
+  city: '',
+  governing_county: 'Orange',
+}
+
 export default function SendContract() {
   const navigate = useNavigate()
   const [contractType, setContractType] = useState('nda')
@@ -117,6 +161,8 @@ export default function SendContract() {
   const [ndaTerms, setNdaTerms] = useState<NDATerms>({ ...DEFAULT_NDA_TERMS })
   const [msaTerms, setMsaTerms] = useState<MSATerms>({ ...DEFAULT_MSA_TERMS })
   const [sowTerms, setSowTerms] = useState<SOWTerms>({ ...DEFAULT_SOW_TERMS })
+  const [supportTerms, setSupportTerms] = useState<SupportTerms>({ ...DEFAULT_SUPPORT_TERMS })
+  const [acceptanceTerms, setAcceptanceTerms] = useState<AcceptanceTerms>({ ...DEFAULT_ACCEPTANCE_TERMS })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -170,6 +216,12 @@ export default function SendContract() {
   function setSow(key: keyof SOWTerms, value: string) {
     setSowTerms(t => ({ ...t, [key]: value }))
   }
+  function setSupport(key: keyof SupportTerms, value: string) {
+    setSupportTerms(t => ({ ...t, [key]: value }))
+  }
+  function setAcceptance(key: keyof AcceptanceTerms, value: string) {
+    setAcceptanceTerms(t => ({ ...t, [key]: value }))
+  }
 
   // Helpers para los milestones del SOW
   type MilestoneKey = 'm1_weeks'|'m1_payment'|'m2_weeks'|'m2_payment'|'m3_weeks'|'m3_payment'|'m4_weeks'|'m4_payment'|'m5_weeks'|'m5_payment'
@@ -203,16 +255,49 @@ export default function SendContract() {
           }
         : undefined
 
+    const support_sow_fields: SupportSOWFields | undefined =
+      contractType === 'support'
+        ? {
+            client_signer_name: client.client_signer_name,
+            client_title:       client.client_title,
+            ...supportTerms,
+          }
+        : undefined
+
+    const acceptance_fields: AcceptanceFields | undefined =
+      contractType === 'acceptance'
+        ? {
+            client_signer_name: client.client_signer_name,
+            client_title:       client.client_title,
+            ...acceptanceTerms,
+          }
+        : undefined
+
+    const gen_nda_fields: GenNDAFields | undefined =
+      contractType === 'gen_nda'
+        ? {
+            client_entity_type: client.client_entity_type,
+            client_address:     client.client_address,
+            client_signer_name: client.client_signer_name,
+            client_title:       client.client_title,
+            ...ndaTerms,
+          }
+        : undefined
+
+    const dynamicTypes = ['sow', 'support', 'acceptance', 'gen_nda']
+
     try {
       const result = await sendContract({
         client_name:   client.client_name,
         client_email:  client.client_email,
         contract_type: contractType,
-        // Para SOW no se envía template_id — el backend genera el PDF
-        template_id: contractType !== 'sow' && templateId ? templateId : undefined,
+        template_id: !dynamicTypes.includes(contractType) && templateId ? templateId : undefined,
         nda_fields,
         msa_fields,
         sow_fields,
+        support_sow_fields,
+        acceptance_fields,
+        gen_nda_fields,
       })
       navigate(`/contracts/${result.envelope_id}`)
     } catch (e: unknown) {
@@ -244,7 +329,7 @@ export default function SendContract() {
             className={inputClass}
           >
             {CONTRACT_TYPES.map(t => (
-              <option key={t} value={t}>{t.toUpperCase()}</option>
+              <option key={t} value={t}>{CONTRACT_TYPE_LABELS[t]}</option>
             ))}
           </select>
         </div>
@@ -619,8 +704,236 @@ export default function SendContract() {
           </div>
         )}
 
+        {/* ── Términos Support SOW ─────────────────────────────── */}
+        {contractType === 'support' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
+            <p className={sectionLabel}>Términos de Soporte &amp; Mantenimiento</p>
+
+            {/* Retainer mensual */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Fee mensual (USD)</label>
+                <input
+                  required type="text"
+                  value={supportTerms.monthly_fee}
+                  onChange={e => setSupport('monthly_fee', e.target.value)}
+                  placeholder="1500"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Horas de evolución / mes</label>
+                <input
+                  required type="text"
+                  value={supportTerms.included_hours}
+                  onChange={e => setSupport('included_hours', e.target.value)}
+                  placeholder="10"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Duración inicial (meses)</label>
+                <input
+                  type="text"
+                  value={supportTerms.duration_months}
+                  onChange={e => setSupport('duration_months', e.target.value)}
+                  placeholder="12"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Condado (disputas)</label>
+                <input
+                  type="text"
+                  value={supportTerms.governing_county}
+                  onChange={e => setSupport('governing_county', e.target.value)}
+                  placeholder="Orange"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            {/* SLA table */}
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">SLA — Tiempos de respuesta (horas hábiles)</p>
+              <div className="border border-slate-200 rounded-lg overflow-hidden text-sm">
+                <div className="grid grid-cols-[1fr_7rem] bg-slate-700 text-white text-xs font-semibold">
+                  <div className="px-3 py-2">Severidad / Condición</div>
+                  <div className="px-3 py-2 text-center">Máx. respuesta</div>
+                </div>
+                {[
+                  { key: 'sla_critical_hours' as keyof SupportTerms, label: 'Critical / High', desc: 'Sistema caído, funciones core no operativas', bg: 'bg-red-50' },
+                  { key: 'sla_medium_hours'   as keyof SupportTerms, label: 'Medium',          desc: 'Malfuncionamiento parcial o intermitente',  bg: 'bg-yellow-50' },
+                  { key: 'sla_low_hours'      as keyof SupportTerms, label: 'Low',              desc: 'Problemas cosméticos o ajustes no urgentes', bg: 'bg-green-50' },
+                ].map(row => (
+                  <div key={row.key} className={`grid grid-cols-[1fr_7rem] border-t border-slate-200 ${row.bg}`}>
+                    <div className="px-3 py-2 text-slate-700">
+                      <span className="font-semibold">{row.label}</span>
+                      <span className="text-slate-400 ml-2 text-xs">{row.desc}</span>
+                    </div>
+                    <div className="px-2 py-1.5 flex items-center">
+                      <input
+                        type="text"
+                        value={supportTerms[row.key]}
+                        onChange={e => setSupport(row.key, e.target.value)}
+                        className="w-full border border-slate-300 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Acceptance Certificate ────────────────────────────── */}
+        {contractType === 'acceptance' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <p className={sectionLabel}>Certificado de Aceptación Final</p>
+
+            <div>
+              <label className={labelClass}>Nombre del proyecto</label>
+              <input
+                required type="text"
+                value={acceptanceTerms.project_name}
+                onChange={e => setAcceptance('project_name', e.target.value)}
+                placeholder="Vehicle Tracking & Booking Platform"
+                className={inputClass}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Garantía post-lanzamiento (días)</label>
+                <input
+                  type="text"
+                  value={acceptanceTerms.warranty_days}
+                  onChange={e => setAcceptance('warranty_days', e.target.value)}
+                  placeholder="30"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Ciudad (firma)</label>
+                <input
+                  type="text"
+                  value={acceptanceTerms.city}
+                  onChange={e => setAcceptance('city', e.target.value)}
+                  placeholder="Orlando"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Condado (disputas)</label>
+                <input
+                  type="text"
+                  value={acceptanceTerms.governing_county}
+                  onChange={e => setAcceptance('governing_county', e.target.value)}
+                  placeholder="Orange"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            {/* Fixed deliverables preview */}
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">Entregables incluidos (fijos)</p>
+              <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">
+                {[
+                  'Corporate Website & Booking System',
+                  'WhatsApp API Integration',
+                  'Tracking Automation Backend',
+                  'Management WebApp Panel',
+                ].map((d, i) => (
+                  <div key={i} className={`flex items-center gap-2 px-3 py-2 border-t border-slate-100 first:border-t-0 ${i % 2 === 1 ? 'bg-slate-50' : ''}`}>
+                    <span className="w-4 h-4 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-[10px] shrink-0">{i + 1}</span>
+                    <span className="text-slate-600">{d}</span>
+                    <span className="ml-auto font-semibold text-green-700">ACCEPTED</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Términos NDA (Generated PDF) ─────────────────────── */}
+        {contractType === 'gen_nda' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <p className={sectionLabel}>Términos del NDA</p>
+
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">Fecha efectiva del acuerdo</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className={labelClass}>Día</label>
+                  <input
+                    required type="text"
+                    value={ndaTerms.effective_day}
+                    onChange={e => setNda('effective_day', e.target.value)}
+                    placeholder="3"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Mes</label>
+                  <select
+                    value={ndaTerms.effective_month}
+                    onChange={e => setNda('effective_month', e.target.value)}
+                    className={inputClass}
+                  >
+                    {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Año</label>
+                  <input
+                    required type="text"
+                    value={ndaTerms.effective_year}
+                    onChange={e => setNda('effective_year', e.target.value)}
+                    placeholder="2026"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Duración del acuerdo (§11)</label>
+                <input
+                  type="text"
+                  value={ndaTerms.agreement_term}
+                  onChange={e => setNda('agreement_term', e.target.value)}
+                  placeholder="2 years"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Non-Solicitation (§8)</label>
+                <input
+                  type="text"
+                  value={ndaTerms.non_solicitation_term}
+                  onChange={e => setNda('non_solicitation_term', e.target.value)}
+                  placeholder="1 year"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Condado (disputas §12)</label>
+                <input
+                  type="text"
+                  value={ndaTerms.governing_county}
+                  onChange={e => setNda('governing_county', e.target.value)}
+                  placeholder="Miami-Dade"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Template ID override (solo NDA / MSA) ─────────────── */}
-        {contractType !== 'sow' && (
+        {contractType !== 'sow' && contractType !== 'support' && contractType !== 'acceptance' && contractType !== 'gen_nda' && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <label className={labelClass}>
               Template ID <span className="text-slate-400 font-normal">(opcional)</span>

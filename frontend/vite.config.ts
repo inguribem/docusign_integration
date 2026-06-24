@@ -8,6 +8,7 @@ export default defineConfig({
     proxy: {
       '/contracts': 'http://localhost:8000',
       '/templates': 'http://localhost:8000',
+      '/config':    'http://localhost:8000',
     },
   },
 })

@@ -59,6 +59,40 @@ export interface SOWFields {
   governing_county: string
 }
 
+export interface SupportSOWFields {
+  client_signer_name: string
+  client_title: string
+  monthly_fee: string
+  included_hours: string
+  duration_months: string
+  sla_critical_hours: string
+  sla_medium_hours: string
+  sla_low_hours: string
+  governing_county: string
+}
+
+export interface AcceptanceFields {
+  client_signer_name: string
+  client_title: string
+  project_name: string
+  warranty_days: string
+  city: string
+  governing_county: string
+}
+
+export interface GenNDAFields {
+  client_entity_type: string
+  client_address: string
+  client_signer_name: string
+  client_title: string
+  effective_day: string
+  effective_month: string
+  effective_year: string
+  agreement_term: string
+  non_solicitation_term: string
+  governing_county: string
+}
+
 export interface SendContractPayload {
   client_name: string
   client_email: string
@@ -67,6 +101,9 @@ export interface SendContractPayload {
   nda_fields?: NDAFields
   msa_fields?: MSAFields
   sow_fields?: SOWFields
+  support_sow_fields?: SupportSOWFields
+  acceptance_fields?: AcceptanceFields
+  gen_nda_fields?: GenNDAFields
   embedded?: boolean
 }
 
