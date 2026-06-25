@@ -93,6 +93,21 @@ export interface GenNDAFields {
   governing_county: string
 }
 
+export interface GenMSAFields {
+  client_entity_type: string
+  client_address: string
+  client_signer_name: string
+  client_title: string
+  effective_day: string
+  effective_month: string
+  effective_year: string
+  payment_terms: string
+  late_fee_rate: string
+  agreement_term: string
+  non_solicitation_term: string
+  governing_county: string
+}
+
 export interface SendContractPayload {
   client_name: string
   client_email: string
@@ -104,6 +119,7 @@ export interface SendContractPayload {
   support_sow_fields?: SupportSOWFields
   acceptance_fields?: AcceptanceFields
   gen_nda_fields?: GenNDAFields
+  gen_msa_fields?: GenMSAFields
   embedded?: boolean
 }
 

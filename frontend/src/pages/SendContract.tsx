@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { sendContract, getContractDefaults } from '../api/client'
-import type { NDAFields, MSAFields, SOWFields, SupportSOWFields, AcceptanceFields, GenNDAFields, ContractDefaults } from '../api/client'
+import type { NDAFields, MSAFields, SOWFields, SupportSOWFields, AcceptanceFields, GenNDAFields, GenMSAFields, ContractDefaults } from '../api/client'
 
-const CONTRACT_TYPES = ['nda', 'msa', 'sow', 'support', 'acceptance', 'gen_nda']
+const CONTRACT_TYPES = ['nda', 'msa', 'sow', 'support', 'acceptance', 'gen_nda', 'gen_msa']
 
 const CONTRACT_TYPE_LABELS: Record<string, string> = {
   nda:        'NDA',
@@ -12,6 +12,7 @@ const CONTRACT_TYPE_LABELS: Record<string, string> = {
   support:    'SOW (Support & Maintenance)',
   acceptance: 'Acceptance Certificate',
   gen_nda:    'NDA (Generated PDF)',
+  gen_msa:    'MSA (Generated PDF)',
 }
 const MONTHS = ['January','February','March','April','May','June',
                  'July','August','September','October','November','December']
@@ -284,7 +285,18 @@ export default function SendContract() {
           }
         : undefined
 
-    const dynamicTypes = ['sow', 'support', 'acceptance', 'gen_nda']
+    const gen_msa_fields: GenMSAFields | undefined =
+      contractType === 'gen_msa'
+        ? {
+            client_entity_type: client.client_entity_type,
+            client_address:     client.client_address,
+            client_signer_name: client.client_signer_name,
+            client_title:       client.client_title,
+            ...msaTerms,
+          }
+        : undefined
+
+    const dynamicTypes = ['sow', 'support', 'acceptance', 'gen_nda', 'gen_msa']
 
     try {
       const result = await sendContract({
@@ -298,6 +310,7 @@ export default function SendContract() {
         support_sow_fields,
         acceptance_fields,
         gen_nda_fields,
+        gen_msa_fields,
       })
       navigate(`/contracts/${result.envelope_id}`)
     } catch (e: unknown) {
@@ -932,8 +945,104 @@ export default function SendContract() {
           </div>
         )}
 
+        {/* ── Términos MSA (Generated PDF) ─────────────────────── */}
+        {contractType === 'gen_msa' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <p className={sectionLabel}>Términos del MSA</p>
+
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">Fecha efectiva del acuerdo</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className={labelClass}>Día</label>
+                  <input
+                    required type="text"
+                    value={msaTerms.effective_day}
+                    onChange={e => setMsa('effective_day', e.target.value)}
+                    placeholder="3"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Mes</label>
+                  <select
+                    value={msaTerms.effective_month}
+                    onChange={e => setMsa('effective_month', e.target.value)}
+                    className={inputClass}
+                  >
+                    {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Año</label>
+                  <input
+                    required type="text"
+                    value={msaTerms.effective_year}
+                    onChange={e => setMsa('effective_year', e.target.value)}
+                    placeholder="2026"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Plazo de pago (días)</label>
+                <input
+                  type="text"
+                  value={msaTerms.payment_terms}
+                  onChange={e => setMsa('payment_terms', e.target.value)}
+                  placeholder="15"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Interés por mora (% mensual)</label>
+                <input
+                  type="text"
+                  value={msaTerms.late_fee_rate}
+                  onChange={e => setMsa('late_fee_rate', e.target.value)}
+                  placeholder="1.5"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Vigencia del acuerdo (§14)</label>
+                <input
+                  type="text"
+                  value={msaTerms.agreement_term}
+                  onChange={e => setMsa('agreement_term', e.target.value)}
+                  placeholder="1 year"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Non-Solicitation (§8)</label>
+                <input
+                  type="text"
+                  value={msaTerms.non_solicitation_term}
+                  onChange={e => setMsa('non_solicitation_term', e.target.value)}
+                  placeholder="1 year"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Condado (disputas §16)</label>
+                <input
+                  type="text"
+                  value={msaTerms.governing_county}
+                  onChange={e => setMsa('governing_county', e.target.value)}
+                  placeholder="Miami-Dade"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Template ID override (solo NDA / MSA) ─────────────── */}
-        {contractType !== 'sow' && contractType !== 'support' && contractType !== 'acceptance' && contractType !== 'gen_nda' && (
+        {contractType !== 'sow' && contractType !== 'support' && contractType !== 'acceptance' && contractType !== 'gen_nda' && contractType !== 'gen_msa' && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <label className={labelClass}>
               Template ID <span className="text-slate-400 font-normal">(opcional)</span>
