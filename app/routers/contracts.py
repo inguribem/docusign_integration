@@ -91,15 +91,83 @@ class SOWFields(BaseModel):
     governing_county: str = ""
 
 
+class SupportSOWFields(BaseModel):
+    """
+    Campos del SOW de Soporte & Mantenimiento. PDF generado dinámicamente.
+    """
+    client_signer_name: str = ""
+    client_title: str = ""
+    # SOW metadata
+    sow_number: str = ""
+    effective_date: str = ""
+    # Project
+    project_name: str = ""
+    # Términos comerciales
+    monthly_fee: str
+    included_hours: str = "3"
+    additional_hours_rate: str = "75"
+    duration_months: str = "12"
+
+
+class AcceptanceFields(BaseModel):
+    """
+    Campos del Certificado de Aceptación Final. PDF generado dinámicamente.
+    """
+    client_signer_name: str = ""
+    client_title: str = ""
+    project_name: str
+    warranty_days: str = ""
+    city: str = ""
+    governing_county: str = ""
+
+
+class GenNDAFields(BaseModel):
+    """
+    Campos del NDA generado dinámicamente (PDF). No usa template de DocuSign.
+    Los datos de la empresa consultora se leen desde settings/.env.
+    """
+    client_entity_type: str = "Individual"
+    client_address: str = ""
+    effective_day: str
+    effective_month: str
+    effective_year: str
+    agreement_term: str = "2 years"
+    non_solicitation_term: str = "1 year"
+    governing_county: str = "Miami-Dade"
+    client_signer_name: str = ""
+    client_title: str = ""
+
+
+class GenMSAFields(BaseModel):
+    """
+    Campos del MSA generado dinámicamente (PDF). No usa template de DocuSign.
+    Los datos de la empresa consultora se leen desde settings/.env.
+    """
+    client_entity_type: str = "Individual"
+    client_address: str = ""
+    effective_day: str
+    effective_month: str
+    effective_year: str
+    agreement_term: str = "1 year"
+    non_solicitation_term: str = "1 year"
+    governing_county: str = "Miami-Dade"
+    client_signer_name: str = ""
+    client_title: str = ""
+
+
 class SendContractRequest(BaseModel):
     client_name: str
     client_email: EmailStr
-    contract_type: str                          # "nda" | "msa" | "sow"
-    template_id: Optional[str] = None          # Override del template por defecto
-    nda_fields: Optional[NDAFields] = None     # Campos del NDA
-    msa_fields: Optional[MSAFields] = None     # Campos del MSA
-    sow_fields: Optional[SOWFields] = None     # Campos del SOW
-    embedded: bool = False                      # True = firma dentro de tu app
+    contract_type: str                                        # "nda" | "msa" | "sow" | "support" | "acceptance" | "gen_nda"
+    template_id: Optional[str] = None                        # Override del template por defecto
+    nda_fields: Optional[NDAFields] = None
+    msa_fields: Optional[MSAFields] = None
+    sow_fields: Optional[SOWFields] = None
+    support_sow_fields: Optional[SupportSOWFields] = None
+    acceptance_fields: Optional[AcceptanceFields] = None
+    gen_nda_fields: Optional[GenNDAFields] = None
+    gen_msa_fields: Optional[GenMSAFields] = None
+    embedded: bool = False
 
 
 class SendContractResponse(BaseModel):
@@ -119,9 +187,13 @@ class EnvelopeStatusResponse(BaseModel):
 def get_contract_templates() -> dict[str, str]:
     """Lee los template IDs desde settings (cargados desde .env)."""
     return {
-        "nda": settings.docusign_template_nda,
-        "msa": settings.docusign_template_msa,
-        "sow": settings.docusign_template_sow,
+        "nda":     settings.docusign_template_nda,
+        "msa":     settings.docusign_template_msa,
+        "sow":     settings.docusign_template_sow,
+        "support":    "",  # PDF generado dinámicamente
+        "acceptance": "",  # PDF generado dinámicamente
+        "gen_nda":    "",  # PDF generado dinámicamente
+        "gen_msa":    "",  # PDF generado dinámicamente
     }
 
 
@@ -190,6 +262,166 @@ async def send_contract(request: SendContractRequest):
                 consultant=consultant,
                 client=client,
                 email_subject=f"Please sign your SOW — {request.client_name}",
+            )
+            return SendContractResponse(envelope_id=result.envelope_id, status=result.status)
+        except RuntimeError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+    # ── Support & Maintenance SOW: PDF generado dinámicamente ───────────────
+    if contract_type == "support":
+        if not request.support_sow_fields:
+            raise HTTPException(status_code=400, detail="support_sow_fields requerido para type=support")
+        f = request.support_sow_fields
+        from app.services.support_sow_generator import SupportSOWData, generate_support_sow_pdf
+        support_data = SupportSOWData(
+            consultant_company=settings.company_name,
+            client_name=request.client_name,
+            sow_number=f.sow_number or "SOW-2026-001",
+            effective_date=f.effective_date,
+            project_name=f.project_name or "Automated Invoice Processing with AI",
+            monthly_fee=f.monthly_fee,
+            included_hours=f.included_hours,
+            additional_hours_rate=f.additional_hours_rate,
+            duration_months=f.duration_months,
+            consultant_name=settings.consultant_name,
+            consultant_title=settings.consultant_title,
+            consultant_email=settings.consultant_email,
+            client_signer_name=f.client_signer_name or request.client_name,
+            client_signer_title=f.client_title,
+        )
+        try:
+            pdf_bytes = generate_support_sow_pdf(support_data)
+            consultant = RecipientInfo(name=settings.consultant_name, email=settings.consultant_email)
+            client = RecipientInfo(
+                name=f.client_signer_name or request.client_name,
+                email=request.client_email,
+            )
+            result = send_sow_envelope(
+                pdf_bytes=pdf_bytes,
+                document_name=f"Support SOW — {request.client_name}",
+                consultant=consultant,
+                client=client,
+                email_subject=f"Please sign your Support & Maintenance SOW — {request.client_name}",
+            )
+            return SendContractResponse(envelope_id=result.envelope_id, status=result.status)
+        except RuntimeError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+    # ── Acceptance Certificate: PDF generado dinámicamente ──────────────────
+    if contract_type == "acceptance":
+        if not request.acceptance_fields:
+            raise HTTPException(status_code=400, detail="acceptance_fields requerido para type=acceptance")
+        f = request.acceptance_fields
+        from app.services.acceptance_generator import AcceptanceData, generate_acceptance_pdf
+        acceptance_data = AcceptanceData(
+            consultant_company=settings.company_name,
+            client_name=request.client_name,
+            project_name=f.project_name,
+            warranty_days=f.warranty_days or settings.sow_warranty_days,
+            city=f.city,
+            governing_county=f.governing_county or settings.sow_governing_county,
+            consultant_name=settings.consultant_name,
+            consultant_title=settings.consultant_title,
+            client_signer_name=f.client_signer_name or request.client_name,
+            client_signer_title=f.client_title,
+        )
+        try:
+            pdf_bytes = generate_acceptance_pdf(acceptance_data)
+            consultant = RecipientInfo(name=settings.consultant_name, email=settings.consultant_email)
+            client = RecipientInfo(
+                name=f.client_signer_name or request.client_name,
+                email=request.client_email,
+            )
+            result = send_sow_envelope(
+                pdf_bytes=pdf_bytes,
+                document_name=f"Acceptance Certificate — {request.client_name}",
+                consultant=consultant,
+                client=client,
+                email_subject=f"Project Sign-Off — {f.project_name} — {request.client_name}",
+            )
+            return SendContractResponse(envelope_id=result.envelope_id, status=result.status)
+        except RuntimeError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+    # ── Generated NDA: PDF generado dinámicamente ──────────────────────────────
+    if contract_type == "gen_nda":
+        if not request.gen_nda_fields:
+            raise HTTPException(status_code=400, detail="gen_nda_fields requerido para type=gen_nda")
+        f = request.gen_nda_fields
+        from app.services.gen_nda_generator import GenNDAData, generate_gen_nda_pdf
+        nda_data = GenNDAData(
+            consultant_company=settings.company_name,
+            consultant_entity_type=settings.company_entity_type,
+            consultant_address=settings.company_address,
+            client_name=request.client_name,
+            client_entity_type=f.client_entity_type,
+            client_address=f.client_address,
+            effective_day=f.effective_day,
+            effective_month=f.effective_month,
+            effective_year=f.effective_year,
+            agreement_term=f.agreement_term,
+            non_solicitation_term=f.non_solicitation_term,
+            governing_county=f.governing_county,
+            consultant_name=settings.consultant_name,
+            consultant_title=settings.consultant_title,
+            client_signer_name=f.client_signer_name or request.client_name,
+            client_signer_title=f.client_title,
+        )
+        try:
+            pdf_bytes = generate_gen_nda_pdf(nda_data)
+            consultant = RecipientInfo(name=settings.consultant_name, email=settings.consultant_email)
+            client = RecipientInfo(
+                name=f.client_signer_name or request.client_name,
+                email=request.client_email,
+            )
+            result = send_sow_envelope(
+                pdf_bytes=pdf_bytes,
+                document_name=f"NDA — {request.client_name}",
+                consultant=consultant,
+                client=client,
+                email_subject=f"Please sign your NDA — {request.client_name}",
+            )
+            return SendContractResponse(envelope_id=result.envelope_id, status=result.status)
+        except RuntimeError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+    # ── Generated MSA: PDF generado dinámicamente ──────────────────────────────
+    if contract_type == "gen_msa":
+        if not request.gen_msa_fields:
+            raise HTTPException(status_code=400, detail="gen_msa_fields requerido para type=gen_msa")
+        f = request.gen_msa_fields
+        from app.services.gen_msa_generator import GenMSAData, generate_gen_msa_pdf
+        msa_data = GenMSAData(
+            consultant_company=settings.company_name,
+            consultant_entity_type=settings.company_entity_type,
+            consultant_address=settings.company_address,
+            client_name=request.client_name,
+            client_entity_type=f.client_entity_type,
+            client_address=f.client_address,
+            effective_day=f.effective_day,
+            effective_month=f.effective_month,
+            effective_year=f.effective_year,
+            agreement_term=f.agreement_term,
+            non_solicitation_term=f.non_solicitation_term,
+            governing_county=f.governing_county,
+            consultant_name=settings.consultant_name,
+            consultant_title=settings.consultant_title,
+            client_signer_name=f.client_signer_name or request.client_name,
+            client_signer_title=f.client_title,
+        )
+        try:
+            pdf_bytes = generate_gen_msa_pdf(msa_data)
+            consultant = RecipientInfo(name=settings.consultant_name, email=settings.consultant_email)
+            client = RecipientInfo(
+                name=f.client_signer_name or request.client_name,
+                email=request.client_email,
+            )
+            result = send_sow_envelope(
+                pdf_bytes=pdf_bytes,
+                document_name=f"MSA — {request.client_name}",
+                consultant=consultant,
+                client=client,
+                email_subject=f"Please sign your Master Services Agreement — {request.client_name}",
             )
             return SendContractResponse(envelope_id=result.envelope_id, status=result.status)
         except RuntimeError as e:

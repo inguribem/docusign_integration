@@ -62,13 +62,13 @@ export interface SOWFields {
 export interface SupportSOWFields {
   client_signer_name: string
   client_title: string
+  sow_number: string
+  effective_date: string
+  project_name: string
   monthly_fee: string
   included_hours: string
+  additional_hours_rate: string
   duration_months: string
-  sla_critical_hours: string
-  sla_medium_hours: string
-  sla_low_hours: string
-  governing_county: string
 }
 
 export interface AcceptanceFields {
@@ -101,8 +101,6 @@ export interface GenMSAFields {
   effective_day: string
   effective_month: string
   effective_year: string
-  payment_terms: string
-  late_fee_rate: string
   agreement_term: string
   non_solicitation_term: string
   governing_county: string

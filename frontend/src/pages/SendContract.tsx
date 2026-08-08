@@ -106,13 +106,13 @@ interface SOWTerms {
 
 // Términos del SOW de Soporte & Mantenimiento
 interface SupportTerms {
+  sow_number: string
+  effective_date: string
+  project_name: string
   monthly_fee: string
   included_hours: string
+  additional_hours_rate: string
   duration_months: string
-  sla_critical_hours: string
-  sla_medium_hours: string
-  sla_low_hours: string
-  governing_county: string
 }
 
 const DEFAULT_SOW_TERMS: SOWTerms = {
@@ -130,13 +130,13 @@ const DEFAULT_SOW_TERMS: SOWTerms = {
 }
 
 const DEFAULT_SUPPORT_TERMS: SupportTerms = {
+  sow_number: '',
+  effective_date: '',
+  project_name: '',
   monthly_fee: '',
-  included_hours: '',
-  duration_months: '',
-  sla_critical_hours: '4',
-  sla_medium_hours: '24',
-  sla_low_hours: '72',
-  governing_county: 'Orange',
+  included_hours: '3',
+  additional_hours_rate: '75',
+  duration_months: '12',
 }
 
 interface AcceptanceTerms {
@@ -719,10 +719,44 @@ export default function SendContract() {
 
         {/* ── Términos Support SOW ─────────────────────────────── */}
         {contractType === 'support' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
-            <p className={sectionLabel}>Términos de Soporte &amp; Mantenimiento</p>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <p className={sectionLabel}>Soporte &amp; Mantenimiento — Standard Plan</p>
 
-            {/* Retainer mensual */}
+            {/* SOW metadata */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>SOW No.</label>
+                <input
+                  type="text"
+                  value={supportTerms.sow_number}
+                  onChange={e => setSupport('sow_number', e.target.value)}
+                  placeholder="SOW-2026-001"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Fecha efectiva</label>
+                <input
+                  type="text"
+                  value={supportTerms.effective_date}
+                  onChange={e => setSupport('effective_date', e.target.value)}
+                  placeholder="June 15, 2026"
+                  className={inputClass}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className={labelClass}>Nombre del proyecto / plataforma</label>
+                <input
+                  type="text"
+                  value={supportTerms.project_name}
+                  onChange={e => setSupport('project_name', e.target.value)}
+                  placeholder="Automated Invoice Processing with AI"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            {/* Commercial terms */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Fee mensual (USD)</label>
@@ -730,17 +764,27 @@ export default function SendContract() {
                   required type="text"
                   value={supportTerms.monthly_fee}
                   onChange={e => setSupport('monthly_fee', e.target.value)}
-                  placeholder="1500"
+                  placeholder="250"
                   className={inputClass}
                 />
               </div>
               <div>
-                <label className={labelClass}>Horas de evolución / mes</label>
+                <label className={labelClass}>Horas incluidas / mes</label>
                 <input
-                  required type="text"
+                  type="text"
                   value={supportTerms.included_hours}
                   onChange={e => setSupport('included_hours', e.target.value)}
-                  placeholder="10"
+                  placeholder="3"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Tarifa horas adicionales (USD/hr)</label>
+                <input
+                  type="text"
+                  value={supportTerms.additional_hours_rate}
+                  onChange={e => setSupport('additional_hours_rate', e.target.value)}
+                  placeholder="75"
                   className={inputClass}
                 />
               </div>
@@ -754,44 +798,22 @@ export default function SendContract() {
                   className={inputClass}
                 />
               </div>
-              <div>
-                <label className={labelClass}>Condado (disputas)</label>
-                <input
-                  type="text"
-                  value={supportTerms.governing_county}
-                  onChange={e => setSupport('governing_county', e.target.value)}
-                  placeholder="Orange"
-                  className={inputClass}
-                />
-              </div>
             </div>
 
-            {/* SLA table */}
+            {/* Fixed SLA preview */}
             <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">SLA — Tiempos de respuesta (horas hábiles)</p>
-              <div className="border border-slate-200 rounded-lg overflow-hidden text-sm">
-                <div className="grid grid-cols-[1fr_7rem] bg-slate-700 text-white text-xs font-semibold">
-                  <div className="px-3 py-2">Severidad / Condición</div>
-                  <div className="px-3 py-2 text-center">Máx. respuesta</div>
-                </div>
+              <p className="text-xs font-medium text-slate-500 mb-2">SLA — Standard Plan (fijo)</p>
+              <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">
                 {[
-                  { key: 'sla_critical_hours' as keyof SupportTerms, label: 'Critical / High', desc: 'Sistema caído, funciones core no operativas', bg: 'bg-red-50' },
-                  { key: 'sla_medium_hours'   as keyof SupportTerms, label: 'Medium',          desc: 'Malfuncionamiento parcial o intermitente',  bg: 'bg-yellow-50' },
-                  { key: 'sla_low_hours'      as keyof SupportTerms, label: 'Low',              desc: 'Problemas cosméticos o ajustes no urgentes', bg: 'bg-green-50' },
+                  { label: 'Critical', desc: 'Platform down or invoices not processing', time: '24–48 hours', bg: 'bg-red-50' },
+                  { label: 'High',     desc: 'Data extraction errors / notification failures', time: '48 hours',    bg: 'bg-orange-50' },
+                  { label: 'Medium',   desc: 'Minor adjustments / technical inquiries',         time: '72 hours',    bg: 'bg-yellow-50' },
+                  { label: 'Low',      desc: 'Requested improvements or changes',               time: 'N/A',         bg: 'bg-green-50' },
                 ].map(row => (
-                  <div key={row.key} className={`grid grid-cols-[1fr_7rem] border-t border-slate-200 ${row.bg}`}>
-                    <div className="px-3 py-2 text-slate-700">
-                      <span className="font-semibold">{row.label}</span>
-                      <span className="text-slate-400 ml-2 text-xs">{row.desc}</span>
-                    </div>
-                    <div className="px-2 py-1.5 flex items-center">
-                      <input
-                        type="text"
-                        value={supportTerms[row.key]}
-                        onChange={e => setSupport(row.key, e.target.value)}
-                        className="w-full border border-slate-300 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
+                  <div key={row.label} className={`grid grid-cols-[4rem_1fr_6rem] border-t border-slate-100 first:border-t-0 px-3 py-2 ${row.bg}`}>
+                    <span className="font-semibold text-slate-700">{row.label}</span>
+                    <span className="text-slate-500">{row.desc}</span>
+                    <span className="text-right font-medium text-slate-700">{row.time}</span>
                   </div>
                 ))}
               </div>
@@ -987,26 +1009,6 @@ export default function SendContract() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelClass}>Plazo de pago (días)</label>
-                <input
-                  type="text"
-                  value={msaTerms.payment_terms}
-                  onChange={e => setMsa('payment_terms', e.target.value)}
-                  placeholder="15"
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Interés por mora (% mensual)</label>
-                <input
-                  type="text"
-                  value={msaTerms.late_fee_rate}
-                  onChange={e => setMsa('late_fee_rate', e.target.value)}
-                  placeholder="1.5"
-                  className={inputClass}
-                />
-              </div>
               <div>
                 <label className={labelClass}>Vigencia del acuerdo (§14)</label>
                 <input
