@@ -89,7 +89,7 @@ _CLIENT_RESPONSIBILITIES = [
     "access (such as Meta Business Manager verification, AI/LLM API keys, and cloud hosting "
     "access) within three (3) business days of request;",
     "designate a single point of contact with authority to approve decisions;",
-    "make milestone payments on time as specified in Section 4. Delays caused by Client may "
+    "make payments on time as specified in Section 4. Delays caused by Client may "
     "result in timeline adjustments at no additional cost to Consultant.",
 ]
 
@@ -109,7 +109,6 @@ _TECH_STACK_ROWS = [
 ]
 
 DARK_BLUE = colors.HexColor("#1a3a6b")
-LIGHT_BLUE = colors.HexColor("#eef2f7")
 STRIPE = colors.HexColor("#f5f7fa")
 GRID_COLOR = colors.HexColor("#cccccc")
 
@@ -123,19 +122,16 @@ class InvoiceSOWData:
     client_name: str
     # Project
     project_description: str
-    # Milestone variable fields (5 predefined milestones)
+    # Milestone variable fields (5 predefined milestones — duration only, no per-milestone price)
     m1_weeks: str = ""
-    m1_payment: str = ""
     m2_weeks: str = ""
-    m2_payment: str = ""
     m3_weeks: str = ""
-    m3_payment: str = ""
     m4_weeks: str = ""
-    m4_payment: str = ""
     m5_weeks: str = ""
-    m5_payment: str = ""
     total_price: str = ""
-    # Payment terms
+    # Payment terms — two installments instead of per-milestone payments
+    initial_payment: str = ""
+    final_payment: str = ""
     payment_due_days: str = "15"
     late_fee_rate: str = "1.5"
     warranty_days: str = "30"
@@ -241,7 +237,7 @@ def _build_story(data: InvoiceSOWData, S: dict) -> list:
         Paragraph(
             "Duration per milestone is estimated from the start date of that phase. Actual "
             "start of each phase depends on timely delivery of Client responsibilities and "
-            "payment of the preceding milestone.",
+            "completion of the preceding milestone.",
             S["caption"],
         ),
         Spacer(1, 0.12 * inch),
@@ -252,16 +248,18 @@ def _build_story(data: InvoiceSOWData, S: dict) -> list:
         Paragraph("4. Payment Terms", S["h1"]),
         Paragraph(
             f'The total fixed price for this SOW is <b>USD ${data.total_price}</b>, payable '
-            f'in milestone installments as defined in Section 3. Invoices are due within '
+            f'in two (2) installments: an initial payment of <b>USD ${data.initial_payment}</b> '
+            f'due upon execution of this SOW ("Project Kickoff"), and a final payment of '
+            f'<b>USD ${data.final_payment}</b> due upon final delivery and acceptance of the '
+            f'Project as defined in Section 6. Invoices are due within '
             f'<b>{data.payment_due_days} days</b> of issuance. Payments not received by the '
             f'due date shall accrue interest at <b>{data.late_fee_rate}% per month</b>.',
             S["body"],
         ),
         Paragraph(
-            "Consultant shall not begin a new milestone phase until the invoice for the "
-            "preceding milestone has been paid in full. All prices are in USD and exclude "
-            "applicable taxes. Pre-approved third-party expenses are billed at cost with "
-            "supporting receipts.",
+            "Consultant shall not begin work on the Project until the initial payment has "
+            "been received in full. All prices are in USD and exclude applicable taxes. "
+            "Pre-approved third-party expenses are billed at cost with supporting receipts.",
             S["body"],
         ),
         Spacer(1, 0.12 * inch),
@@ -326,7 +324,7 @@ def _build_story(data: InvoiceSOWData, S: dict) -> list:
     story += [
         Paragraph("8. Intellectual Property", S["h1"]),
         Paragraph(
-            "Upon receipt of full payment for all milestones, Consultant grants Client a "
+            "Upon receipt of full payment, Consultant grants Client a "
             "perpetual, irrevocable, worldwide, non-exclusive license to use, modify, and "
             "deploy the Deliverables for Client's business purposes, as defined in the MSA. "
             "Consultant retains ownership of all Pre-Existing IP and general-purpose "
@@ -386,40 +384,25 @@ def _scope_table(S: dict) -> Table:
 
 
 def _milestones_table(data: InvoiceSOWData, S: dict) -> Table:
-    col_w = [0.25 * inch, 1.35 * inch, 3.0 * inch, 0.85 * inch, 0.85 * inch]
-    header = [Paragraph(h, S["th"]) for h in ("#", "Milestone", "Deliverables", "Duration", "Payment")]
-    weeks_payments = [
-        (data.m1_weeks, data.m1_payment),
-        (data.m2_weeks, data.m2_payment),
-        (data.m3_weeks, data.m3_payment),
-        (data.m4_weeks, data.m4_payment),
-        (data.m5_weeks, data.m5_payment),
-    ]
+    col_w = [0.3 * inch, 1.55 * inch, 3.85 * inch, 1.0 * inch]
+    header = [Paragraph(h, S["th"]) for h in ("#", "Milestone", "Deliverables", "Duration")]
+    weeks = [data.m1_weeks, data.m2_weeks, data.m3_weeks, data.m4_weeks, data.m5_weeks]
     rows = [header]
     for i, (name, deliverables) in enumerate(zip(MILESTONE_NAMES, MILESTONE_DELIVERABLES)):
-        wk, pay = weeks_payments[i]
+        wk = weeks[i]
         rows.append([
             Paragraph(str(i + 1), S["td_center"]),
             Paragraph(f"<b>{name}</b>", S["td"]),
             Paragraph(deliverables, S["td"]),
             Paragraph(f"{wk} wks" if wk else "—", S["td_center"]),
-            Paragraph(f"${pay}" if pay else "—", S["td_center"]),
         ])
-    rows.append([
-        Paragraph("", S["td"]),
-        Paragraph("", S["td"]),
-        Paragraph("<b>TOTAL</b>", S["td"]),
-        Paragraph("", S["td"]),
-        Paragraph(f"<b>${data.total_price}</b>", S["td_center"]),
-    ])
 
     t = Table(rows, colWidths=col_w, repeatRows=1)
     t.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0),  (-1, 0),  DARK_BLUE),
         ("TEXTCOLOR",     (0, 0),  (-1, 0),  colors.white),
         ("GRID",          (0, 0),  (-1, -1), 0.5, GRID_COLOR),
-        ("ROWBACKGROUNDS",(0, 1),  (-1, -2), [colors.white, STRIPE]),
-        ("BACKGROUND",    (0, -1), (-1, -1), LIGHT_BLUE),
+        ("ROWBACKGROUNDS",(0, 1),  (-1, -1), [colors.white, STRIPE]),
         ("VALIGN",        (0, 0),  (-1, -1), "TOP"),
         ("TOPPADDING",    (0, 0),  (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0),  (-1, -1), 5),

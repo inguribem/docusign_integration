@@ -108,6 +108,8 @@ interface SOWTerms {
   m4_weeks: string; m4_payment: string
   m5_weeks: string; m5_payment: string
   total_price: string
+  initial_payment: string
+  final_payment: string
   payment_due_days: string
   late_fee_rate: string
   warranty_days: string
@@ -133,6 +135,8 @@ const DEFAULT_SOW_TERMS: SOWTerms = {
   m4_weeks: '', m4_payment: '',
   m5_weeks: '', m5_payment: '',
   total_price: '',
+  initial_payment: '',
+  final_payment: '',
   payment_due_days: '15',
   late_fee_rate: '1.5',
   warranty_days: '30',
@@ -330,6 +334,7 @@ export default function SendContract() {
     }
   }
 
+  const isInvoiceSow = contractType === 'invoice_sow'
   const inputClass = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
   const labelClass = 'block text-sm font-medium text-slate-700 mb-1'
   const sectionLabel = 'text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3'
@@ -628,16 +633,16 @@ export default function SendContract() {
               <p className="text-xs font-medium text-slate-500 mb-2">Milestones</p>
               <div className="border border-slate-200 rounded-lg overflow-hidden text-sm">
                 {/* Header */}
-                <div className="grid grid-cols-[1fr_5rem_6rem] bg-slate-700 text-white text-xs font-semibold">
+                <div className={`grid ${isInvoiceSow ? 'grid-cols-[1fr_5rem]' : 'grid-cols-[1fr_5rem_6rem]'} bg-slate-700 text-white text-xs font-semibold`}>
                   <div className="px-3 py-2">Milestone</div>
                   <div className="px-3 py-2 text-center">Semanas</div>
-                  <div className="px-3 py-2 text-center">Pago (USD)</div>
+                  {!isInvoiceSow && <div className="px-3 py-2 text-center">Pago (USD)</div>}
                 </div>
                 {/* Rows */}
-                {(contractType === 'invoice_sow' ? INVOICE_SOW_MILESTONE_NAMES : SOW_MILESTONE_NAMES).map((name, i) => (
+                {(isInvoiceSow ? INVOICE_SOW_MILESTONE_NAMES : SOW_MILESTONE_NAMES).map((name, i) => (
                   <div
                     key={i}
-                    className={`grid grid-cols-[1fr_5rem_6rem] border-t border-slate-200 ${i % 2 === 1 ? 'bg-slate-50' : 'bg-white'}`}
+                    className={`grid ${isInvoiceSow ? 'grid-cols-[1fr_5rem]' : 'grid-cols-[1fr_5rem_6rem]'} border-t border-slate-200 ${i % 2 === 1 ? 'bg-slate-50' : 'bg-white'}`}
                   >
                     <div className="px-3 py-2 text-slate-700 flex items-center">
                       <span className="text-slate-400 mr-2 font-medium">{i + 1}.</span>
@@ -652,34 +657,74 @@ export default function SendContract() {
                         className="w-full border border-slate-300 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
                     </div>
+                    {!isInvoiceSow && (
+                      <div className="px-2 py-1.5 flex items-center">
+                        <input
+                          type="text"
+                          value={sowTerms[milestonePayKey(i)]}
+                          onChange={e => setSow(milestonePayKey(i), e.target.value)}
+                          placeholder="2500"
+                          className="w-full border border-slate-300 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {/* Total — solo para SOW por milestone */}
+                {!isInvoiceSow && (
+                  <div className="grid grid-cols-[1fr_5rem_6rem] border-t-2 border-slate-300 bg-slate-100">
+                    <div className="px-3 py-2 text-slate-700 font-semibold col-span-2 flex items-center justify-end pr-4">
+                      TOTAL (USD)
+                    </div>
                     <div className="px-2 py-1.5 flex items-center">
                       <input
-                        type="text"
-                        value={sowTerms[milestonePayKey(i)]}
-                        onChange={e => setSow(milestonePayKey(i), e.target.value)}
-                        placeholder="2500"
-                        className="w-full border border-slate-300 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        required type="text"
+                        value={sowTerms.total_price}
+                        onChange={e => setSow('total_price', e.target.value)}
+                        placeholder="15000"
+                        className="w-full border border-slate-300 rounded px-2 py-1 text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
                     </div>
                   </div>
-                ))}
-                {/* Total */}
-                <div className="grid grid-cols-[1fr_5rem_6rem] border-t-2 border-slate-300 bg-slate-100">
-                  <div className="px-3 py-2 text-slate-700 font-semibold col-span-2 flex items-center justify-end pr-4">
-                    TOTAL (USD)
-                  </div>
-                  <div className="px-2 py-1.5 flex items-center">
-                    <input
-                      required type="text"
-                      value={sowTerms.total_price}
-                      onChange={e => setSow('total_price', e.target.value)}
-                      placeholder="15000"
-                      className="w-full border border-slate-300 rounded px-2 py-1 text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
+                )}
               </div>
             </div>
+
+            {/* Pago en dos cuotas — solo para Invoice Automation SOW */}
+            {isInvoiceSow && (
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={labelClass}>Pago inicial (USD)</label>
+                  <input
+                    required type="text"
+                    value={sowTerms.initial_payment}
+                    onChange={e => setSow('initial_payment', e.target.value)}
+                    placeholder="2000"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Pago final (USD)</label>
+                  <input
+                    required type="text"
+                    value={sowTerms.final_payment}
+                    onChange={e => setSow('final_payment', e.target.value)}
+                    placeholder="2500"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>TOTAL (USD)</label>
+                  <input
+                    required type="text"
+                    value={sowTerms.total_price}
+                    onChange={e => setSow('total_price', e.target.value)}
+                    placeholder="4500"
+                    className={`${inputClass} font-semibold`}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Términos de pago y garantía */}
             <div className="grid grid-cols-2 gap-3">

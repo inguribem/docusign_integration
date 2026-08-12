@@ -53,6 +53,8 @@ export interface SOWFields {
   m4_weeks: string; m4_payment: string
   m5_weeks: string; m5_payment: string
   total_price: string
+  initial_payment: string
+  final_payment: string
   payment_due_days: string
   late_fee_rate: string
   warranty_days: string

@@ -84,6 +84,9 @@ class SOWFields(BaseModel):
     m4_weeks: str = ""; m4_payment: str = ""
     m5_weeks: str = ""; m5_payment: str = ""
     total_price: str = ""
+    # Pago en dos cuotas (usado por invoice_sow en lugar del pago por milestone)
+    initial_payment: str = ""
+    final_payment: str = ""
     # Términos (defaults desde settings si quedan vacíos)
     payment_due_days: str = ""
     late_fee_rate: str = ""
@@ -278,12 +281,14 @@ async def send_contract(request: SendContractRequest):
             consultant_company=f"{settings.company_name} {settings.company_entity_type}".strip(),
             client_name=request.client_name,
             project_description=f.project_description,
-            m1_weeks=f.m1_weeks, m1_payment=f.m1_payment,
-            m2_weeks=f.m2_weeks, m2_payment=f.m2_payment,
-            m3_weeks=f.m3_weeks, m3_payment=f.m3_payment,
-            m4_weeks=f.m4_weeks, m4_payment=f.m4_payment,
-            m5_weeks=f.m5_weeks, m5_payment=f.m5_payment,
+            m1_weeks=f.m1_weeks,
+            m2_weeks=f.m2_weeks,
+            m3_weeks=f.m3_weeks,
+            m4_weeks=f.m4_weeks,
+            m5_weeks=f.m5_weeks,
             total_price=f.total_price,
+            initial_payment=f.initial_payment,
+            final_payment=f.final_payment,
             payment_due_days=f.payment_due_days or settings.sow_payment_terms,
             late_fee_rate=f.late_fee_rate or settings.sow_late_fee_rate,
             warranty_days=f.warranty_days or settings.sow_warranty_days,
