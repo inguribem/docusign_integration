@@ -158,7 +158,7 @@ class GenMSAFields(BaseModel):
 class SendContractRequest(BaseModel):
     client_name: str
     client_email: EmailStr
-    contract_type: str                                        # "nda" | "msa" | "sow" | "support" | "acceptance" | "gen_nda"
+    contract_type: str                                        # "nda" | "msa" | "sow" | "invoice_sow" | "support" | "acceptance" | "gen_nda"
     template_id: Optional[str] = None                        # Override del template por defecto
     nda_fields: Optional[NDAFields] = None
     msa_fields: Optional[MSAFields] = None
@@ -190,6 +190,7 @@ def get_contract_templates() -> dict[str, str]:
         "nda":     settings.docusign_template_nda,
         "msa":     settings.docusign_template_msa,
         "sow":     settings.docusign_template_sow,
+        "invoice_sow": "",  # PDF generado dinámicamente
         "support":    "",  # PDF generado dinámicamente
         "acceptance": "",  # PDF generado dinámicamente
         "gen_nda":    "",  # PDF generado dinámicamente
@@ -231,7 +232,7 @@ async def send_contract(request: SendContractRequest):
         f = request.sow_fields
         from app.services.sow_generator import SOWData, generate_sow_pdf
         sow_data = SOWData(
-            consultant_company=settings.company_name,
+            consultant_company=f"{settings.company_name} {settings.company_entity_type}".strip(),
             client_name=request.client_name,
             project_description=f.project_description,
             m1_weeks=f.m1_weeks, m1_payment=f.m1_payment,
@@ -267,6 +268,49 @@ async def send_contract(request: SendContractRequest):
         except RuntimeError as e:
             raise HTTPException(status_code=502, detail=str(e))
 
+    # ── Invoice Automation SOW: PDF generado dinámicamente ──────────────────
+    if contract_type == "invoice_sow":
+        if not request.sow_fields:
+            raise HTTPException(status_code=400, detail="sow_fields requerido para type=invoice_sow")
+        f = request.sow_fields
+        from app.services.invoice_sow_generator import InvoiceSOWData, generate_invoice_sow_pdf
+        invoice_sow_data = InvoiceSOWData(
+            consultant_company=f"{settings.company_name} {settings.company_entity_type}".strip(),
+            client_name=request.client_name,
+            project_description=f.project_description,
+            m1_weeks=f.m1_weeks, m1_payment=f.m1_payment,
+            m2_weeks=f.m2_weeks, m2_payment=f.m2_payment,
+            m3_weeks=f.m3_weeks, m3_payment=f.m3_payment,
+            m4_weeks=f.m4_weeks, m4_payment=f.m4_payment,
+            m5_weeks=f.m5_weeks, m5_payment=f.m5_payment,
+            total_price=f.total_price,
+            payment_due_days=f.payment_due_days or settings.sow_payment_terms,
+            late_fee_rate=f.late_fee_rate or settings.sow_late_fee_rate,
+            warranty_days=f.warranty_days or settings.sow_warranty_days,
+            governing_county=f.governing_county or settings.sow_governing_county,
+            consultant_name=settings.consultant_name,
+            consultant_title=settings.consultant_title,
+            client_signer_name=f.client_signer_name or request.client_name,
+            client_signer_title=f.client_title,
+        )
+        try:
+            pdf_bytes = generate_invoice_sow_pdf(invoice_sow_data)
+            consultant = RecipientInfo(name=settings.consultant_name, email=settings.consultant_email)
+            client = RecipientInfo(
+                name=f.client_signer_name or request.client_name,
+                email=request.client_email,
+            )
+            result = send_sow_envelope(
+                pdf_bytes=pdf_bytes,
+                document_name=f"SOW — {request.client_name}",
+                consultant=consultant,
+                client=client,
+                email_subject=f"Please sign your SOW — {request.client_name}",
+            )
+            return SendContractResponse(envelope_id=result.envelope_id, status=result.status)
+        except RuntimeError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
     # ── Support & Maintenance SOW: PDF generado dinámicamente ───────────────
     if contract_type == "support":
         if not request.support_sow_fields:
@@ -274,7 +318,7 @@ async def send_contract(request: SendContractRequest):
         f = request.support_sow_fields
         from app.services.support_sow_generator import SupportSOWData, generate_support_sow_pdf
         support_data = SupportSOWData(
-            consultant_company=settings.company_name,
+            consultant_company=f"{settings.company_name} {settings.company_entity_type}".strip(),
             client_name=request.client_name,
             sow_number=f.sow_number or "SOW-2026-001",
             effective_date=f.effective_date,
@@ -314,7 +358,7 @@ async def send_contract(request: SendContractRequest):
         f = request.acceptance_fields
         from app.services.acceptance_generator import AcceptanceData, generate_acceptance_pdf
         acceptance_data = AcceptanceData(
-            consultant_company=settings.company_name,
+            consultant_company=f"{settings.company_name} {settings.company_entity_type}".strip(),
             client_name=request.client_name,
             project_name=f.project_name,
             warranty_days=f.warranty_days or settings.sow_warranty_days,

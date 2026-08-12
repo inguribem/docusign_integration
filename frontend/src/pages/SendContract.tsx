@@ -3,16 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { sendContract, getContractDefaults } from '../api/client'
 import type { NDAFields, MSAFields, SOWFields, SupportSOWFields, AcceptanceFields, GenNDAFields, GenMSAFields, ContractDefaults } from '../api/client'
 
-const CONTRACT_TYPES = ['nda', 'msa', 'sow', 'support', 'acceptance', 'gen_nda', 'gen_msa']
+const CONTRACT_TYPES = ['nda', 'msa', 'sow', 'invoice_sow', 'support', 'acceptance', 'gen_nda', 'gen_msa']
 
 const CONTRACT_TYPE_LABELS: Record<string, string> = {
-  nda:        'NDA',
-  msa:        'MSA',
-  sow:        'SOW (App Dev)',
-  support:    'SOW (Support & Maintenance)',
-  acceptance: 'Acceptance Certificate',
-  gen_nda:    'NDA (Generated PDF)',
-  gen_msa:    'MSA (Generated PDF)',
+  nda:         'NDA',
+  msa:         'MSA',
+  sow:         'SOW (App Dev)',
+  invoice_sow: 'SOW (Invoice Automation)',
+  support:     'SOW (Support & Maintenance)',
+  acceptance:  'Acceptance Certificate',
+  gen_nda:     'NDA (Generated PDF)',
+  gen_msa:     'MSA (Generated PDF)',
 }
 const MONTHS = ['January','February','March','April','May','June',
                  'July','August','September','October','November','December']
@@ -87,6 +88,15 @@ const SOW_MILESTONE_NAMES = [
   'WhatsApp API & Tracking Automation',
   'Management WebApp',
   'QA, Testing & Launch',
+]
+
+// Milestones fijos del SOW de Automatización de Facturas (solo duración y pago son variables)
+const INVOICE_SOW_MILESTONE_NAMES = [
+  'Discovery & Solution Design',
+  'WhatsApp Intake & AI Validation Engine',
+  'Database & Vehicle Grouping Backend',
+  'Review & Correction WebApp',
+  'Reporting Module, QA & Launch',
 ]
 
 // Términos del SOW (sin campos de cliente — vienen de ClientInfo)
@@ -199,7 +209,7 @@ export default function SendContract() {
   // Al cambiar tipo de contrato, actualiza template ID (vacío para SOW — usa PDF dinámico)
   useEffect(() => {
     if (!defaults) return
-    const id = contractType === 'sow'
+    const id = (contractType === 'sow' || contractType === 'invoice_sow')
       ? ''
       : (defaults[contractType as keyof ContractDefaults]?.template_id ?? '')
     setTemplateId(id)
@@ -248,7 +258,7 @@ export default function SendContract() {
       contractType === 'msa' ? { ...clientFields, ...msaTerms } : undefined
 
     const sow_fields: SOWFields | undefined =
-      contractType === 'sow'
+      (contractType === 'sow' || contractType === 'invoice_sow')
         ? {
             client_signer_name: client.client_signer_name,
             client_title:       client.client_title,
@@ -296,7 +306,7 @@ export default function SendContract() {
           }
         : undefined
 
-    const dynamicTypes = ['sow', 'support', 'acceptance', 'gen_nda', 'gen_msa']
+    const dynamicTypes = ['sow', 'invoice_sow', 'support', 'acceptance', 'gen_nda', 'gen_msa']
 
     try {
       const result = await sendContract({
@@ -597,7 +607,7 @@ export default function SendContract() {
         )}
 
         {/* ── Términos SOW ──────────────────────────────────────── */}
-        {contractType === 'sow' && (
+        {(contractType === 'sow' || contractType === 'invoice_sow') && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
             <p className={sectionLabel}>Términos del SOW</p>
 
@@ -624,7 +634,7 @@ export default function SendContract() {
                   <div className="px-3 py-2 text-center">Pago (USD)</div>
                 </div>
                 {/* Rows */}
-                {SOW_MILESTONE_NAMES.map((name, i) => (
+                {(contractType === 'invoice_sow' ? INVOICE_SOW_MILESTONE_NAMES : SOW_MILESTONE_NAMES).map((name, i) => (
                   <div
                     key={i}
                     className={`grid grid-cols-[1fr_5rem_6rem] border-t border-slate-200 ${i % 2 === 1 ? 'bg-slate-50' : 'bg-white'}`}
@@ -1044,7 +1054,7 @@ export default function SendContract() {
         )}
 
         {/* ── Template ID override (solo NDA / MSA) ─────────────── */}
-        {contractType !== 'sow' && contractType !== 'support' && contractType !== 'acceptance' && contractType !== 'gen_nda' && contractType !== 'gen_msa' && (
+        {contractType !== 'sow' && contractType !== 'invoice_sow' && contractType !== 'support' && contractType !== 'acceptance' && contractType !== 'gen_nda' && contractType !== 'gen_msa' && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <label className={labelClass}>
               Template ID <span className="text-slate-400 font-normal">(opcional)</span>
