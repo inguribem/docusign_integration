@@ -56,12 +56,6 @@ class Settings(BaseSettings):
     sow_governing_county: str = "Miami-Dade"
 
     @property
-    def docusign_base_url(self) -> str:
-        if self.docusign_environment == "production":
-            return "https://na3.docusign.net/restapi"
-        return "https://demo.docusign.net/restapi"
-
-    @property
     def docusign_auth_url(self) -> str:
         if self.docusign_environment == "production":
             return "https://account.docusign.com"

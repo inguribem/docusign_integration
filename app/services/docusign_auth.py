@@ -13,6 +13,11 @@ settings = get_settings()
 # Token cache para no pedir uno nuevo en cada request
 _token_cache: dict = {"access_token": None, "expires_at": 0}
 
+# Cache del base_uri real de la cuenta (na1/na2/na3/na4/eu/...). DocuSign reparte
+# las cuentas entre varios datacenters — nunca se debe asumir uno fijo, hay que
+# resolverlo vía /oauth/userinfo. No expira mientras dure el proceso.
+_account_cache: dict = {"base_uri": None}
+
 
 def _load_private_key() -> str:
     key_path = Path(settings.docusign_private_key_path)
@@ -68,11 +73,44 @@ def get_access_token() -> str:
     return _token_cache["access_token"]
 
 
+def _get_account_base_uri(access_token: str) -> str:
+    """
+    Resuelve el host real (na1/na2/na3/na4/eu/...) de la cuenta configurada.
+    Nunca se debe asumir un datacenter fijo: DocuSign reparte las cuentas
+    (sobre todo en producción) entre varios hosts regionales.
+    """
+    if _account_cache["base_uri"]:
+        return _account_cache["base_uri"]
+
+    import httpx
+    response = httpx.get(
+        f"{settings.docusign_auth_url}/oauth/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    response.raise_for_status()
+    accounts = response.json().get("accounts", [])
+    account = next(
+        (a for a in accounts if a["account_id"] == settings.docusign_account_id),
+        None,
+    )
+    if not account:
+        raise RuntimeError(
+            f"DOCUSIGN_ACCOUNT_ID={settings.docusign_account_id} no aparece entre las "
+            "cuentas del usuario autenticado. Verifica el Account ID en settings."
+        )
+
+    _account_cache["base_uri"] = account["base_uri"]
+    return account["base_uri"]
+
+
 def get_api_client() -> ApiClient:
     """Retorna un ApiClient de DocuSign autenticado y listo para usar."""
+    access_token = get_access_token()
+    base_uri = _get_account_base_uri(access_token)
+
     api_client = ApiClient()
-    api_client.host = settings.docusign_base_url
+    api_client.host = f"{base_uri}/restapi"
     api_client.set_default_header(
-        "Authorization", f"Bearer {get_access_token()}"
+        "Authorization", f"Bearer {access_token}"
     )
     return api_client
