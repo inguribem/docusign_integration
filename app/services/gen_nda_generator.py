@@ -354,12 +354,6 @@ def _build_story(data: GenNDAData, S: dict) -> list:
             'certified mail to the addresses set forth above.',
             S["body"],
         ),
-        Spacer(1, 0.08 * inch),
-        Paragraph(
-            '<i>Disclaimer: This document is a template for informational purposes and does not '
-            'constitute legal advice. Consult a licensed attorney before use.</i>',
-            S["caption"],
-        ),
     ]
 
     # ── Signature block ─────────────────────────────────────────────────────────

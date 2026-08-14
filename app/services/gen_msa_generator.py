@@ -448,12 +448,6 @@ def _build_story(data: GenMSAData, S: dict) -> list:
             'with a merger, acquisition, or sale of substantially all assets.',
             S["body"],
         ),
-        Spacer(1, 0.08 * inch),
-        Paragraph(
-            '<i>Disclaimer: This document is a template and does not constitute legal advice. '
-            'Consult a licensed attorney before use.</i>',
-            S["caption"],
-        ),
     ]
 
     # ── Signature block ─────────────────────────────────────────────────────────
