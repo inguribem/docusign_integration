@@ -142,6 +142,24 @@ export async function getContractStatus(envelopeId: string): Promise<Envelope> {
   return res.json()
 }
 
+// FastAPI devuelve `detail` como string en los errores propios de la app, pero como
+// array de objetos {loc, msg, type} en errores de validación (422) — hay que
+// distinguirlos para no terminar mostrando "[object Object]" en el UI.
+function extractErrorMessage(err: unknown, status: number): string {
+  const detail = (err as { detail?: unknown } | null)?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map(d => {
+        const loc = Array.isArray(d?.loc) ? d.loc.filter((p: unknown) => p !== 'body').join('.') : ''
+        return loc ? `${loc}: ${d?.msg}` : d?.msg
+      })
+      .filter(Boolean)
+      .join('; ') || `Error ${status}`
+  }
+  return `Error ${status}`
+}
+
 export async function sendContract(payload: SendContractPayload): Promise<SendContractResponse> {
   const res = await fetch(`${BASE}/send`, {
     method: 'POST',
@@ -150,7 +168,7 @@ export async function sendContract(payload: SendContractPayload): Promise<SendCo
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Error ${res.status}`)
+    throw new Error(extractErrorMessage(err, res.status))
   }
   return res.json()
 }
@@ -163,7 +181,7 @@ export async function previewContract(payload: SendContractPayload): Promise<Blo
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Error ${res.status}`)
+    throw new Error(extractErrorMessage(err, res.status))
   }
   return res.blob()
 }
