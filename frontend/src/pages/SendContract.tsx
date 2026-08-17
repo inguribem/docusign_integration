@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { sendContract, getContractDefaults } from '../api/client'
+import { sendContract, previewContract, getContractDefaults } from '../api/client'
 import type { NDAFields, MSAFields, SOWFields, SupportSOWFields, AcceptanceFields, GenNDAFields, GenMSAFields, ContractDefaults } from '../api/client'
 
 const CONTRACT_TYPES = ['nda', 'msa', 'sow', 'invoice_sow', 'support', 'acceptance', 'gen_nda', 'gen_msa']
@@ -179,6 +179,7 @@ export default function SendContract() {
   const [supportTerms, setSupportTerms] = useState<SupportTerms>({ ...DEFAULT_SUPPORT_TERMS })
   const [acceptanceTerms, setAcceptanceTerms] = useState<AcceptanceTerms>({ ...DEFAULT_ACCEPTANCE_TERMS })
   const [loading, setLoading] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Carga valores por defecto desde .env vía backend
@@ -243,11 +244,7 @@ export default function SendContract() {
   const milestoneWeeksKey  = (i: number) => `m${i+1}_weeks`  as MilestoneKey
   const milestonePayKey    = (i: number) => `m${i+1}_payment` as MilestoneKey
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-
+  function buildPayload() {
     const clientFields = {
       client_entity_type: client.client_entity_type,
       client_signer_name: client.client_signer_name,
@@ -312,25 +309,46 @@ export default function SendContract() {
 
     const dynamicTypes = ['sow', 'invoice_sow', 'support', 'acceptance', 'gen_nda', 'gen_msa']
 
+    return {
+      client_name:   client.client_name,
+      client_email:  client.client_email,
+      contract_type: contractType,
+      template_id: !dynamicTypes.includes(contractType) && templateId ? templateId : undefined,
+      nda_fields,
+      msa_fields,
+      sow_fields,
+      support_sow_fields,
+      acceptance_fields,
+      gen_nda_fields,
+      gen_msa_fields,
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
     try {
-      const result = await sendContract({
-        client_name:   client.client_name,
-        client_email:  client.client_email,
-        contract_type: contractType,
-        template_id: !dynamicTypes.includes(contractType) && templateId ? templateId : undefined,
-        nda_fields,
-        msa_fields,
-        sow_fields,
-        support_sow_fields,
-        acceptance_fields,
-        gen_nda_fields,
-        gen_msa_fields,
-      })
+      const result = await sendContract(buildPayload())
       navigate(`/contracts/${result.envelope_id}`)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error desconocido')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handlePreview() {
+    setError(null)
+    setPreviewLoading(true)
+    try {
+      const blob = await previewContract(buildPayload())
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error desconocido')
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
@@ -1120,13 +1138,25 @@ export default function SendContract() {
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
-        >
-          {loading ? 'Enviando…' : 'Enviar Contrato'}
-        </button>
+        <div className="flex gap-3">
+          {isInvoiceSow && (
+            <button
+              type="button"
+              onClick={handlePreview}
+              disabled={previewLoading || loading}
+              className="flex-1 bg-white hover:bg-slate-50 disabled:opacity-60 text-slate-700 font-medium py-2.5 rounded-lg text-sm border border-slate-300 transition-colors"
+            >
+              {previewLoading ? 'Generando…' : 'Vista Previa'}
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={loading || previewLoading}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+          >
+            {loading ? 'Enviando…' : 'Enviar Contrato'}
+          </button>
+        </div>
       </form>
     </div>
   )

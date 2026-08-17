@@ -201,7 +201,56 @@ def get_contract_templates() -> dict[str, str]:
     }
 
 
+def _build_invoice_sow_pdf(request: "SendContractRequest", f: SOWFields) -> bytes:
+    """Genera el PDF del Invoice Automation SOW a partir de los campos del request."""
+    from app.services.invoice_sow_generator import InvoiceSOWData, generate_invoice_sow_pdf
+    invoice_sow_data = InvoiceSOWData(
+        consultant_company=f"{settings.company_name} {settings.company_entity_type}".strip(),
+        client_name=request.client_name,
+        project_description=f.project_description,
+        m1_weeks=f.m1_weeks,
+        m2_weeks=f.m2_weeks,
+        m3_weeks=f.m3_weeks,
+        m4_weeks=f.m4_weeks,
+        m5_weeks=f.m5_weeks,
+        total_price=f.total_price,
+        initial_payment=f.initial_payment,
+        final_payment=f.final_payment,
+        payment_due_days=f.payment_due_days or settings.sow_payment_terms,
+        late_fee_rate=f.late_fee_rate or settings.sow_late_fee_rate,
+        warranty_days=f.warranty_days or settings.sow_warranty_days,
+        governing_county=f.governing_county or settings.sow_governing_county,
+        consultant_name=settings.consultant_name,
+        consultant_title=settings.consultant_title,
+        client_signer_name=f.client_signer_name or request.client_name,
+        client_signer_title=f.client_title,
+    )
+    return generate_invoice_sow_pdf(invoice_sow_data)
+
+
 # ─── Endpoints ─────────────────────────────────────
+
+@router.post("/preview")
+async def preview_contract(request: SendContractRequest):
+    """
+    Genera el PDF del contrato sin enviarlo a DocuSign, para revisión previa.
+    Por ahora solo soporta contract_type=invoice_sow.
+    """
+    from fastapi.responses import Response
+
+    contract_type = request.contract_type.lower()
+
+    if contract_type != "invoice_sow":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Preview no soportado para type={contract_type}"
+        )
+    if not request.sow_fields:
+        raise HTTPException(status_code=400, detail="sow_fields requerido para type=invoice_sow")
+
+    pdf_bytes = _build_invoice_sow_pdf(request, request.sow_fields)
+    return Response(content=pdf_bytes, media_type="application/pdf")
+
 
 @router.get("", response_model=list[EnvelopeStatusResponse])
 async def list_contracts(from_date: Optional[str] = None):
@@ -276,30 +325,8 @@ async def send_contract(request: SendContractRequest):
         if not request.sow_fields:
             raise HTTPException(status_code=400, detail="sow_fields requerido para type=invoice_sow")
         f = request.sow_fields
-        from app.services.invoice_sow_generator import InvoiceSOWData, generate_invoice_sow_pdf
-        invoice_sow_data = InvoiceSOWData(
-            consultant_company=f"{settings.company_name} {settings.company_entity_type}".strip(),
-            client_name=request.client_name,
-            project_description=f.project_description,
-            m1_weeks=f.m1_weeks,
-            m2_weeks=f.m2_weeks,
-            m3_weeks=f.m3_weeks,
-            m4_weeks=f.m4_weeks,
-            m5_weeks=f.m5_weeks,
-            total_price=f.total_price,
-            initial_payment=f.initial_payment,
-            final_payment=f.final_payment,
-            payment_due_days=f.payment_due_days or settings.sow_payment_terms,
-            late_fee_rate=f.late_fee_rate or settings.sow_late_fee_rate,
-            warranty_days=f.warranty_days or settings.sow_warranty_days,
-            governing_county=f.governing_county or settings.sow_governing_county,
-            consultant_name=settings.consultant_name,
-            consultant_title=settings.consultant_title,
-            client_signer_name=f.client_signer_name or request.client_name,
-            client_signer_title=f.client_title,
-        )
         try:
-            pdf_bytes = generate_invoice_sow_pdf(invoice_sow_data)
+            pdf_bytes = _build_invoice_sow_pdf(request, f)
             consultant = RecipientInfo(name=settings.consultant_name, email=settings.consultant_email)
             client = RecipientInfo(
                 name=f.client_signer_name or request.client_name,

@@ -155,6 +155,19 @@ export async function sendContract(payload: SendContractPayload): Promise<SendCo
   return res.json()
 }
 
+export async function previewContract(payload: SendContractPayload): Promise<Blob> {
+  const res = await fetch(`${BASE}/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Error ${res.status}`)
+  }
+  return res.blob()
+}
+
 export function downloadContract(envelopeId: string) {
   window.open(`${BASE}/${envelopeId}/download`, '_blank')
 }
